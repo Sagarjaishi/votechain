@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ethers } from "ethers";
 import axios from "axios";
+import "./App.css";
 
+const DEMO_MODE = true;
 const CONTRACT_ADDRESS = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
 
 const CONTRACT_ABI = [
@@ -10,9 +12,12 @@ const CONTRACT_ABI = [
   "function electionEnded() view returns (bool)",
   "function candidatesCount() view returns (uint256)",
   "function candidates(uint256) view returns (uint256 id, string name, string party, uint256 voteCount)",
+  "function hasVoted(address) view returns (bool)",
   "function addCandidate(string memory _name, string memory _party)",
   "function startElection()",
   "function endElection()",
+  "function resetElection()",
+  "function transferOwnership(address newOwner)",
   "function vote(uint256 _candidateId)",
   "function getWinner() view returns (string memory)"
 ];
@@ -23,6 +28,7 @@ function App() {
   const [account, setAccount] = useState("");
   const [contract, setContract] = useState(null);
   const [isOwner, setIsOwner] = useState(false);
+  const [contractOwner, setContractOwner] = useState("");
   const [candidates, setCandidates] = useState([]);
   const [winner, setWinner] = useState("");
   const [message, setMessage] = useState("");
@@ -36,6 +42,8 @@ function App() {
   const [refreshKey, setRefreshKey] = useState(0);
   const [activeMenu, setActiveMenu] = useState("dashboard");
   const [highlightedSection, setHighlightedSection] = useState("");
+  const [hasUserVoted, setHasUserVoted] = useState(false);
+  const [newOwnerAddress, setNewOwnerAddress] = useState("");
 
   const dashboardRef = useRef(null);
   const adminRef = useRef(null);
@@ -52,6 +60,35 @@ function App() {
     }
   }, [contract, refreshKey]);
 
+  useEffect(() => {
+    if (!window.ethereum) return;
+
+    const handleAccountsChanged = async (accounts) => {
+      if (!accounts.length) {
+        setAccount("");
+        setContract(null);
+        setIsOwner(false);
+        setHasUserVoted(false);
+        return;
+      }
+      await connectWallet(false);
+    };
+
+    const handleChainChanged = () => {
+      window.location.reload();
+    };
+
+    window.ethereum.on("accountsChanged", handleAccountsChanged);
+    window.ethereum.on("chainChanged", handleChainChanged);
+
+    return () => {
+      if (window.ethereum.removeListener) {
+        window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+        window.ethereum.removeListener("chainChanged", handleChainChanged);
+      }
+    };
+  }, []);
+
   const totalVotes = useMemo(
     () => candidates.reduce((sum, c) => sum + c.voteCount, 0),
     [candidates]
@@ -60,8 +97,8 @@ function App() {
   const statusText = electionEnded
     ? "Ended"
     : electionStarted
-    ? "Active"
-    : "Not Started";
+      ? "Active"
+      : "Not Started";
 
   const fetchElectionInfo = async () => {
     try {
@@ -119,7 +156,7 @@ function App() {
     }
   };
 
-  const connectWallet = async () => {
+  const connectWallet = async (showSuccessMessage = true) => {
     try {
       if (!window.ethereum) {
         showMessage("MetaMask is not installed.", "error");
@@ -141,11 +178,17 @@ function App() {
 
       const ownerAddress = await votingContract.owner();
       const currentAddress = accounts[0];
+      const voted = await votingContract.hasVoted(currentAddress);
 
       setAccount(currentAddress);
       setContract(votingContract);
+      setContractOwner(ownerAddress);
       setIsOwner(currentAddress.toLowerCase() === ownerAddress.toLowerCase());
-      showMessage("Wallet connected successfully.", "success");
+      setHasUserVoted(voted);
+
+      if (showSuccessMessage) {
+        showMessage("Wallet connected successfully.", "success");
+      }
     } catch (error) {
       console.error(error);
       showMessage(`Failed to connect MetaMask: ${error.message}`, "error");
@@ -159,9 +202,19 @@ function App() {
       const started = await contract.electionStarted();
       const ended = await contract.electionEnded();
       const count = await contract.candidatesCount();
+      const ownerAddress = await contract.owner();
 
       setElectionStarted(started);
       setElectionEnded(ended);
+      setContractOwner(ownerAddress);
+      setIsOwner(
+        !!account && account.toLowerCase() === ownerAddress.toLowerCase()
+      );
+
+      if (account) {
+        const voted = await contract.hasVoted(account);
+        setHasUserVoted(voted);
+      }
 
       const loadedCandidates = [];
       for (let i = 1; i <= Number(count); i++) {
@@ -190,6 +243,11 @@ function App() {
 
   const addCandidate = async () => {
     try {
+      if (!contract) {
+        showMessage("Please connect your wallet first.", "error");
+        return;
+      }
+
       if (!candidateName.trim() || !candidateParty.trim()) {
         showMessage("Please enter candidate name and party.", "error");
         return;
@@ -208,7 +266,7 @@ function App() {
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error(error);
-      showMessage("Failed to add candidate.", "error");
+      showMessage(error?.shortMessage || error?.message || "Failed to add candidate.", "error");
     } finally {
       setLoadingAction("");
     }
@@ -216,6 +274,11 @@ function App() {
 
   const startElection = async () => {
     try {
+      if (!contract) {
+        showMessage("Please connect your wallet first.", "error");
+        return;
+      }
+
       setLoadingAction("startElection");
       const tx = await contract.startElection();
       await tx.wait();
@@ -223,7 +286,7 @@ function App() {
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error(error);
-      showMessage("Failed to start election.", "error");
+      showMessage(error?.shortMessage || error?.message || "Failed to start election.", "error");
     } finally {
       setLoadingAction("");
     }
@@ -231,6 +294,11 @@ function App() {
 
   const endElection = async () => {
     try {
+      if (!contract) {
+        showMessage("Please connect your wallet first.", "error");
+        return;
+      }
+
       setLoadingAction("endElection");
       const tx = await contract.endElection();
       await tx.wait();
@@ -238,7 +306,53 @@ function App() {
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error(error);
-      showMessage("Failed to end election.", "error");
+      showMessage(error?.shortMessage || error?.message || "Failed to end election.", "error");
+    } finally {
+      setLoadingAction("");
+    }
+  };
+
+  const resetElection = async () => {
+    try {
+      if (!contract) {
+        showMessage("Please connect your wallet first.", "error");
+        return;
+      }
+
+      setLoadingAction("resetElection");
+      const tx = await contract.resetElection();
+      await tx.wait();
+      showMessage("Election reset successfully. Voting can start again.", "success");
+      setRefreshKey((prev) => prev + 1);
+    } catch (error) {
+      console.error(error);
+      showMessage(error?.shortMessage || error?.message || "Failed to reset election.", "error");
+    } finally {
+      setLoadingAction("");
+    }
+  };
+
+  const transferOwnership = async () => {
+    try {
+      if (!contract) {
+        showMessage("Please connect your wallet first.", "error");
+        return;
+      }
+
+      if (!ethers.isAddress(newOwnerAddress.trim())) {
+        showMessage("Enter a valid wallet address.", "error");
+        return;
+      }
+
+      setLoadingAction("transferOwnership");
+      const tx = await contract.transferOwnership(newOwnerAddress.trim());
+      await tx.wait();
+      showMessage("Admin ownership transferred successfully.", "success");
+      setNewOwnerAddress("");
+      setRefreshKey((prev) => prev + 1);
+    } catch (error) {
+      console.error(error);
+      showMessage(error?.shortMessage || error?.message || "Failed to transfer admin.", "error");
     } finally {
       setLoadingAction("");
     }
@@ -246,6 +360,11 @@ function App() {
 
   const voteCandidate = async (id) => {
     try {
+      if (!contract) {
+        showMessage("Please connect your wallet first.", "error");
+        return;
+      }
+
       setLoadingAction(`vote-${id}`);
       const tx = await contract.vote(id);
       await tx.wait();
@@ -253,14 +372,18 @@ function App() {
       setRefreshKey((prev) => prev + 1);
     } catch (error) {
       console.error(error);
-      showMessage("Voting failed. You may already have voted.", "error");
+      showMessage(error?.shortMessage || error?.message || "Voting failed.", "error");
     } finally {
       setLoadingAction("");
     }
   };
 
   const handleRefresh = () => {
-    if (!contract) return;
+    if (!contract) {
+      showMessage("Please connect your wallet first.", "error");
+      return;
+    }
+
     setRefreshKey((prev) => prev + 1);
     showMessage("Blockchain data refreshed.", "info");
   };
@@ -289,6 +412,10 @@ function App() {
   const shortAddress = account
     ? `${account.slice(0, 6)}...${account.slice(-4)}`
     : "Connect Wallet";
+
+  const shortOwnerAddress = contractOwner
+    ? `${contractOwner.slice(0, 6)}...${contractOwner.slice(-4)}`
+    : "Not loaded";
 
   return (
     <div className="final-app">
@@ -345,7 +472,7 @@ function App() {
             </p>
           </div>
 
-          <button className="wallet-button" onClick={connectWallet}>
+          <button className="wallet-button" onClick={() => connectWallet(true)}>
             {loadingAction === "connect" ? "Connecting..." : shortAddress}
           </button>
         </header>
@@ -369,6 +496,7 @@ function App() {
               <div className="wallet-display">
                 <span>Connected Wallet</span>
                 <strong>{account}</strong>
+                <span style={{ marginTop: "8px" }}>Contract Admin: {shortOwnerAddress}</span>
               </div>
             )}
           </div>
@@ -430,15 +558,27 @@ function App() {
           </section>
         )}
 
+        <section className="panel info-panel">
+          <h3>Demo Mode</h3>
+          <p>
+            Admin panel is visible for coursework demonstration on any device.
+            Real blockchain actions still require MetaMask transaction approval.
+          </p>
+          <p>
+            Connected: <strong>{account ? shortAddress : "Not connected"}</strong> | Owner:{" "}
+            <strong>{shortOwnerAddress}</strong>
+          </p>
+        </section>
+
         <div className="content-grid">
-          {isOwner && (
+          {(isOwner || DEMO_MODE) && (
             <section
               className={`panel admin-panel ${highlightedSection === "admin" ? "section-highlight" : ""}`}
               ref={adminRef}
             >
               <div className="panel-header">
                 <div>
-                  <h3>Admin Panel</h3>
+                  <h3>Admin Panel (Demo Access Enabled)</h3>
                   <p>Manage election and candidate setup</p>
                 </div>
                 <button className="refresh-button" onClick={handleRefresh}>
@@ -454,6 +594,7 @@ function App() {
                   <li>Start election</li>
                   <li>Vote</li>
                   <li>End election</li>
+                  <li>Reset election to run again</li>
                 </ol>
               </div>
 
@@ -484,6 +625,22 @@ function App() {
                 <button className="end-btn" onClick={endElection}>
                   {loadingAction === "endElection" ? "Ending..." : "End Election"}
                 </button>
+                <button className="refresh-button" onClick={resetElection}>
+                  {loadingAction === "resetElection" ? "Resetting..." : "Reset Election"}
+                </button>
+              </div>
+
+              <div className="form-grid" style={{ marginTop: "18px" }}>
+                <input
+                  className="form-input"
+                  type="text"
+                  placeholder="New Admin Wallet Address"
+                  value={newOwnerAddress}
+                  onChange={(e) => setNewOwnerAddress(e.target.value)}
+                />
+                <button className="primary-btn" onClick={transferOwnership}>
+                  {loadingAction === "transferOwnership" ? "Transferring..." : "Transfer Admin"}
+                </button>
               </div>
             </section>
           )}
@@ -505,6 +662,11 @@ function App() {
                 <span className={`status-chip ${electionEnded ? "chip-red" : "chip-blue"}`}>
                   {electionEnded ? "Ended" : "Active"}
                 </span>
+                {account && (
+                  <span className={`status-chip ${hasUserVoted ? "chip-red" : "chip-green"}`}>
+                    {hasUserVoted ? "You Voted" : "Not Yet Voted"}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -549,10 +711,14 @@ function App() {
 
                       <button
                         className="vote-btn"
-                        disabled={!electionStarted || electionEnded}
+                        disabled={!account || !electionStarted || electionEnded || hasUserVoted}
                         onClick={() => voteCandidate(candidate.id)}
                       >
-                        {loadingAction === `vote-${candidate.id}` ? "Submitting..." : "Vote Now"}
+                        {loadingAction === `vote-${candidate.id}`
+                          ? "Submitting..."
+                          : hasUserVoted
+                            ? "Already Voted"
+                            : "Vote Now"}
                       </button>
                     </div>
                   );

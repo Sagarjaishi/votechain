@@ -40,3 +40,49 @@
 .read-the-docs {
   color: #888;
 }
+.hero-banner{
+  display:grid;
+  grid-template-columns: 2fr 1fr;
+  gap:40px;
+  align-items:center;
+}
+
+.hero-illustration{
+  display:flex;
+  justify-content:center;
+  align-items:center;
+}
+
+.vote-box{
+  width:260px;
+  height:260px;
+  background:linear-gradient(135deg,#eef4ff,#dbeafe);
+  border-radius:30px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  text-align:center;
+  box-shadow:0 20px 40px rgba(0,0,0,0.08);
+}
+
+.vote-icon{
+  font-size:70px;
+  margin-bottom:15px;
+}
+
+.vote-box h3{
+  font-size:28px;
+  color:#111827;
+  margin-bottom:8px;
+}
+
+.vote-box p{
+  color:#6b7280;
+  font-size:15px;
+}
+
+.vote-lock{
+  font-size:30px;
+  margin-top:15px;
+}
