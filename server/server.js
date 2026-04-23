@@ -15,7 +15,7 @@ const electionInfo = {
 
 const candidateProfiles = [
   {
-    name: "Manish Thapa",
+    name: "Jivan",
     party: "Innovation Party",
     manifesto: "Improve digital learning, employability and student opportunities."
   },
