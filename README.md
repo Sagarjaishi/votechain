@@ -74,3 +74,123 @@ VOTECHAIN/
 ├── README.md
 ├── INSTALLATION.md
 └── .gitignore
+
+
+
+
+## Easy Setup Guide for Tutor / Marker
+
+## Requirements
+- Node.js installed
+- MetaMask Chrome Extension installed
+
+## Step 1: Install Dependencies
+
+Open terminal in project folders and run:
+
+### Blockchain
+cd blockchain
+npm install
+
+### Frontend
+cd client
+npm install
+
+### Backend
+cd server
+npm install
+
+---
+
+## Step 2: Start Local Blockchain
+
+Open terminal in blockchain folder:
+
+npx hardhat node
+
+Keep this terminal running.
+
+---
+
+## Step 3: Deploy Smart Contract
+
+Open a new terminal in blockchain folder:
+
+npx hardhat run scripts/deploy.js --network localhost
+
+Copy the deployed contract address shown in terminal.
+
+---
+
+## Step 4: Update Frontend Contract Address
+
+Open:
+
+client/src/App.jsx
+
+Replace:
+
+const CONTRACT_ADDRESS = "PASTE_YOUR_NEW_DEPLOYED_CONTRACT_ADDRESS_HERE";
+
+with the deployed address.
+
+Save file.
+
+---
+
+## Step 5: Start Backend
+
+Open terminal in server folder:
+
+npm start
+
+---
+
+## Step 6: Start Frontend
+
+Open terminal in client folder:
+
+npm run dev
+
+Open browser:
+
+http://localhost:5173
+
+---
+
+## Step 7: MetaMask Setup
+
+- Open MetaMask
+- Select Hardhat Local Network
+
+Network Details:
+
+RPC URL: http://127.0.0.1:8545  
+Chain ID: 31337  
+Currency Symbol: ETH
+
+---
+
+## Step 8: Testing the Project
+
+Click **Connect Wallet**
+
+Admin Panel is visible in Demo Mode for easier testing.
+
+Tutor can test:
+
+- Add Candidate
+- Start Election
+- Connect another wallet
+- Vote
+- End Election
+- View Winner
+- Reset Election
+
+---
+
+## Notes
+
+- First deployed wallet is original smart contract owner.
+- Demo mode enabled for easier assessment.
+- Votes are stored on blockchain.
