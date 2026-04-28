@@ -371,8 +371,10 @@ body {
 
 .form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 220px;
+  grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
   gap: 14px;
+  align-items: center;
+  width: 100%;
 }
 
 .form-input {

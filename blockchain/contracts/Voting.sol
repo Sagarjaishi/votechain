@@ -41,7 +41,8 @@ contract Voting {
         owner = msg.sender;
     }
 
-    function addCandidate(string memory _name, string memory _party) public onlyOwner {
+    // ANY WALLET
+    function addCandidate(string memory _name, string memory _party) public {
         require(!electionStarted, "Election already started");
         require(bytes(_name).length > 0, "Candidate name required");
         require(bytes(_party).length > 0, "Party name required");
@@ -52,18 +53,24 @@ contract Voting {
         emit CandidateAdded(candidatesCount, _name, _party);
     }
 
-    function startElection() public onlyOwner {
+    // ANY WALLET
+    function startElection() public {
         require(candidatesCount > 0, "Add candidates first");
         require(!electionStarted, "Election already started");
+
         electionStarted = true;
         electionEnded = false;
+
         emit ElectionStarted();
     }
 
-    function endElection() public onlyOwner {
+    // ANY WALLET
+    function endElection() public {
         require(electionStarted, "Election not started");
         require(!electionEnded, "Election already ended");
+
         electionEnded = true;
+
         emit ElectionEnded();
     }
 
@@ -74,11 +81,11 @@ contract Voting {
         hasVoted[msg.sender] = true;
         voters.push(msg.sender);
         candidates[_candidateId].voteCount++;
-
         emit VoteCast(msg.sender, _candidateId);
     }
 
-    function resetElection() public onlyOwner {
+    // ANY WALLET
+    function resetElection() public {
         require(electionEnded || !electionStarted, "End election first");
 
         for (uint256 i = 1; i <= candidatesCount; i++) {
@@ -88,6 +95,7 @@ contract Voting {
         for (uint256 i = 0; i < voters.length; i++) {
             hasVoted[voters[i]] = false;
         }
+
         delete voters;
 
         electionStarted = false;
@@ -96,10 +104,13 @@ contract Voting {
         emit ElectionReset();
     }
 
+    // KEEP OWNER ONLY
     function transferOwnership(address newOwner) public onlyOwner {
         require(newOwner != address(0), "Invalid new owner");
+
         address previousOwner = owner;
         owner = newOwner;
+
         emit OwnershipTransferred(previousOwner, newOwner);
     }
 
